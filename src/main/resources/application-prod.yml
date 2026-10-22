@@ -1,0 +1,4 @@
+logging:
+  level:
+    root: info
+    knr.shaunmanager: info

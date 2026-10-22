@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>근태 달력 | ShaunManager</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f6fa; color: #222; min-height: 100vh; }
+    .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: #1a1a2e; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat { background: #fff; border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+    .stat-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+    .stat-val { font-size: 22px; font-weight: 600; }
+    .stat-val.blue   { color: #185FA5; }
+    .stat-val.red    { color: #E24B4A; }
+    .stat-val.orange { color: #BA7517; }
+    .stat-val.dark   { color: #222; }
+
+    .cal-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
+    .cal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid #f0f0f0; }
+    .cal-header h2 { font-size: 17px; font-weight: 600; }
+    .cal-nav { display: flex; gap: 8px; }
+    .cal-nav button { background: none; border: 1px solid #ddd; border-radius: 7px; padding: 5px 12px; cursor: pointer; font-size: 14px; color: #444; }
+    .cal-nav button:hover { background: #f5f6fa; }
+
+    .day-names { display: grid; grid-template-columns: repeat(7, 1fr); background: #fafafa; border-bottom: 1px solid #f0f0f0; }
+    .day-name { text-align: center; padding: 8px 0; font-size: 12px; font-weight: 600; color: #888; }
+    .day-name.sun { color: #E24B4A; }
+    .day-name.sat { color: #378ADD; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+    .day-cell { min-height: 80px; padding: 8px; border-right: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0; position: relative; transition: background .12s; }
+    .day-cell:nth-child(7n) { border-right: none; }
+    .day-cell.clickable { cursor: pointer; }
+    .day-cell.clickable:hover { background: #f8f9ff; }
+    .day-cell.other-month { background: #fafafa; }
+
+    .day-num-wrap { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+    .day-num { font-size: 13px; font-weight: 500; color: #333; }
+    .other-month .day-num { color: #ccc; }
+    .sun-col .day-num { color: #E24B4A; }
+    .sat-col .day-num { color: #378ADD; }
+    .holiday-cell .day-num { color: #E24B4A; }
+    .today-cell .day-num-wrap { background: #E24B4A; border-radius: 50%; }
+    .today-cell .day-num { color: #fff !important; }
+
+    .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-top: 2px; }
+    .badge-work    { background: #E6F1FB; color: #185FA5; }
+    .badge-annual  { background: #FCEBEB; color: #A32D2D; }
+    .badge-am      { background: #FAEEDA; color: #854F0B; }
+    .badge-pm      { background: #EAF3DE; color: #3B6D11; }
+    .badge-weekend { background: #f0f0f0; color: #aaa; }
+    .badge-holiday { background: #FCEBEB; color: #A32D2D; }
+    .holiday-name  { font-size: 10px; color: #E24B4A; margin-top: 2px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 12px 20px; border-top: 1px solid #f0f0f0; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #666; }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal { max-height: 90vh; overflow: auto; background: #fff; border-radius: 14px; padding: 24px; width: min(380px, calc(100vw - 32px)); box-shadow: 0 8px 32px rgba(0,0,0,.15); }
+    .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .modal-date  { font-size: 12px; color: #888; margin-bottom: 18px; }
+    .modal-opts  { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .opt-btn { border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 14px; font-size: 13px; cursor: pointer; background: none; text-align: left; display: flex; align-items: center; gap: 10px; width: 100%; transition: background .1s; }
+    .opt-btn:hover { background: #f8f8f8; }
+    .opt-annual:hover { background: #FCEBEB !important; border-color: #A32D2D !important; color: #A32D2D; }
+    .opt-am:hover     { background: #FAEEDA !important; border-color: #854F0B !important; color: #854F0B; }
+    .opt-pm:hover     { background: #EAF3DE !important; border-color: #3B6D11 !important; color: #3B6D11; }
+    .opt-clear        { color: #888; }
+    .modal-cancel { width: 100%; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px; font-size: 13px; cursor: pointer; background: none; color: #888; }
+    .modal-cancel:hover { background: #f5f5f5; }
+
+    .loading { text-align: center; padding: 40px; color: #aaa; font-size: 14px; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 8px 20px; border-radius: 20px; font-size: 13px; z-index: 300; opacity: 0; transition: opacity .3s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    [v-cloak] { display: none; }
+    .opt-btn.selected { background: #E6F1FB; border-color: #185FA5; color: #185FA5; }
+    .section-title { font-size: 12px; font-weight: 600; margin: 16px 0 8px; }
+    .section-divider { border: 0; border-top: 1px solid #e5e7eb; margin: 16px 0; }
+    .location-options { display: flex; gap: 8px; }
+    .schedule-note { font-size: 12px; line-height: 1.7; color: #555; margin: 12px 0; }
+    .save-btn { width: 100%; padding: 10px; border: 0; border-radius: 8px; background: #185FA5; color: white; cursor: pointer; margin-bottom: 8px; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .location-label { font-size: 10px; color: #64748b; margin-top: 4px; }
+    .attendance-times { margin-top: 6px; font-size: 11px; line-height: 1.7; color: #334155; font-variant-numeric: tabular-nums; }
+    .records-note { padding: 10px 16px; font-size: 12px; color: #64748b; }
+    .scheduler-note { font-size: 12px; color: #64748b; margin: -8px 0 18px; }
+    @media(max-width:540px) { .stats { grid-template-columns:repeat(2,1fr); } .day-cell { padding:5px; min-height:82px; } .cal-header { padding:12px 8px; } }
+  </style>
+</head>
+<body>
+<div id="app" v-cloak>
+
+  <div class="modal-overlay" v-if="modal.open" @click.self="closeModal">
+    <div class="modal">
+      <div class="modal-title">이 날 어떻게 처리할까요?</div>
+      <div class="modal-date">{{ modal.dateLabel }}</div>
+      <div class="section-title">근무조</div>
+      <div class="location-options">
+        <button v-for="shift in shifts" :key="shift.value" type="button" class="opt-btn"
+          :class="{selected: modal.workShift === shift.value}" :aria-pressed="modal.workShift === shift.value"
+          :disabled="saving" @click="selectShift(shift.value)">{{ shift.label }}</button>
+      </div>
+      <div class="schedule-note">{{ modal.workShift === 'night' ? '야간조 14:00~23:00 · 반차 없음' : '주간조 08:30~18:30' }}</div>
+      <div class="section-title">근무 구분</div>
+      <div class="modal-opts">
+        <button v-for="option in availableWorkOptions" :key="option.value" type="button"
+          class="opt-btn" :class="{selected: modal.type === option.value}"
+          :aria-pressed="modal.type === option.value" @click="modal.type = option.value" :disabled="saving">{{ option.label }}</button>
+      </div>
+      <hr class="section-divider">
+      <div class="section-title">근무 장소</div>
+      <div class="location-options">
+        <button v-for="location in locations" :key="location" type="button" class="opt-btn"
+          :class="{selected: modal.locationCd === location}" :aria-pressed="modal.locationCd === location"
+          :disabled="saving || modal.type === 'annual'" @click="modal.locationCd = location">{{ location }}</button>
+      </div>
+      <div v-for="action in attendanceActions" :key="action.field">
+        <div class="section-title">{{ action.label }} 자동 처리</div>
+        <div class="location-options">
+          <button type="button" class="opt-btn" :class="{selected: !modal[action.field]}"
+            :aria-pressed="!modal[action.field]" :disabled="saving || modal.type === 'annual'"
+            @click="modal[action.field] = false">✓ 실행</button>
+          <button type="button" class="opt-btn" :class="{selected: modal[action.field]}"
+            :aria-pressed="modal[action.field]" :disabled="saving || modal.type === 'annual'"
+            @click="modal[action.field] = true">건너뛰기</button>
+        </div>
+      </div>
+      <div class="schedule-note">건너뛰기는 선택한 날짜의 자동 처리에만 적용됩니다. 이미 처리된 기록은 취소되지 않습니다.</div>
+      <div class="schedule-note" aria-live="polite">{{ scheduleText(modal.type, modal.workShift) }}</div>
+      <button class="save-btn" @click="saveSetting" :disabled="saving">{{ saving ? '저장 중…' : '저장' }}</button>
+      <button class="opt-btn opt-clear" style="margin-bottom:8px" @click="resetSetting" :disabled="saving">기본값으로 초기화 · 출근·퇴근 모두 실행</button>
+      <button class="modal-cancel" @click="closeModal" :disabled="saving">취소</button>
+    </div>
+  </div>
+
+  <div class="toast" :class="{ show: toast.show }">{{ toast.msg }}</div>
+
+  <div class="container">
+    <h1>📋 근태 달력</h1>
+    <p class="scheduler-note">자동 실행 {{ schedulerEnabled ? '켜짐' : '꺼짐' }} · 기본 주간조 / 외부현장 · 한국 시간 기준 · 야간 퇴근 23:00~23:05</p>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-label">출퇴근 대상일</div><div class="stat-val blue">{{ stats.work }}일</div></div>
+      <div class="stat"><div class="stat-label">공휴일</div><div class="stat-val red">{{ stats.holiday }}일</div></div>
+      <div class="stat"><div class="stat-label">연차·반차</div><div class="stat-val orange">{{ stats.annual }}일</div></div>
+      <div class="stat"><div class="stat-label">실제 근무일</div><div class="stat-val dark">{{ stats.actual }}일</div></div>
+    </div>
+
+    <div class="cal-card">
+      <div class="cal-header">
+        <div class="cal-nav">
+          <button @click="changeMonth(-1)">◀</button>
+          <button @click="goToday()">오늘</button>
+          <button @click="changeMonth(1)">▶</button>
+        </div>
+        <h2>{{ curYear }}년 {{ curMonth + 1 }}월</h2>
+        <div class="cal-nav"><button @click="fetchLeaves" :disabled="loading">새로고침</button></div>
+      </div>
+
+      <div class="day-names">
+        <div class="day-name sun">일</div>
+        <div class="day-name">월</div>
+        <div class="day-name">화</div>
+        <div class="day-name">수</div>
+        <div class="day-name">목</div>
+        <div class="day-name">금</div>
+        <div class="day-name sat">토</div>
+      </div>
+
+      <div v-if="loading" class="loading">데이터 불러오는 중...</div>
+      <div v-else-if="loadError" class="loading" role="alert">{{ loadError }} · 새로고침해주세요.</div>
+      <div v-else class="cal-grid">
+        <div
+          v-for="cell in cells"
+          :key="cell.key"
+          :class="cellClass(cell)"
+          @click="onCellClick(cell)"
+        >
+          <div class="day-num-wrap">
+            <span class="day-num">{{ cell.day }}</span>
+          </div>
+          <span v-if="!cell.other" :class="badgeClass(cell)">{{ badgeText(cell) }}</span>
+          <div v-if="cell.workday && cell.leaveType !== 'annual'" class="location-label">{{ cell.workShift === 'night' ? '야간조' : '주간조' }} · {{ cell.locationCd }}</div>
+          <div v-if="!cell.other && (cell.record || (cell.workday && cell.leaveType !== 'annual'))" class="attendance-times">
+            <div>출근 {{ formatTime(cell.record?.checkInTm) }}{{ cell.skipCheckIn ? ' · 자동 건너뛰기' : '' }}</div>
+            <div>퇴근 {{ formatTime(cell.record?.checkOutTm) }}{{ cell.skipCheckOut ? ' · 자동 건너뛰기' : '' }}</div>
+          </div>
+          <div v-if="cell.holidayName && !cell.other" class="holiday-name">{{ cell.holidayName }}</div>
+        </div>
+      </div>
+
+      <p class="records-note">저장된 출퇴근 시간 · — 표시는 저장된 기록 없음</p>
+      <div class="legend">
+        <div class="legend-item"><span class="badge badge-work">출근</span> 자동 출퇴근</div>
+        <div class="legend-item"><span class="badge badge-annual">연차</span> 하루 제외</div>
+        <div class="legend-item"><span class="badge badge-am">오전</span> 오전 반차</div>
+        <div class="legend-item"><span class="badge badge-pm">오후</span> 오후 반차</div>
+        <div class="legend-item"><span class="badge badge-holiday">공휴일</span> 자동 제외</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let HOLIDAYS = {};
+
+const WEEK = ['일','월','화','수','목','금','토'];
+
+function dateKey(y, m, d) {
+  return `${y}${String(m+1).padStart(2,'0')}${String(d).padStart(2,'0')}`;
+}
+
+const { createApp, ref, computed, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const today    = new Date();
+    const curYear  = ref(today.getFullYear());
+    const curMonth = ref(today.getMonth());
+    const leaves   = ref({});
+    const logs = ref({});
+    const loadError = ref(null);
+    const loading = ref(true);
+    const saving = ref(false);
+    const schedulerEnabled = ref(false);
+    const shifts = [{value:'day',label:'주간조'}, {value:'night',label:'야간조'}];
+    const attendanceActions = [{field:'skipCheckIn',label:'출근'},{field:'skipCheckOut',label:'퇴근'}];
+    const locations = ['외부현장', '본사'];
+    const workOptions = [{value:'work',label:'정상근무'}, {value:'annual',label:'연차'}, {value:'am',label:'오전 반차'}, {value:'pm',label:'오후 반차'}];
+    const accessToken = new URLSearchParams(location.search).get('token') || sessionStorage.getItem('shaunAccessToken') || '';
+    if (accessToken) sessionStorage.setItem('shaunAccessToken', accessToken);
+    async function api(path, options = {}) {
+      const res = await fetch(path, {...options, headers: {'Content-Type':'application/json', 'X-Access-Token':accessToken, ...(options.headers || {})}});
+      if (!res.ok) throw new Error(res.status === 403 ? '접근 토큰을 확인해주세요' : '요청 실패');
+      return res;
+    }
+    function scheduleText(type, shift) {
+      if (type === 'annual') return '연차 · 출근과 퇴근 모두 등록하지 않습니다.';
+      if (shift === 'night') return '출근 13:45~13:55 / 퇴근 23:00~23:05 · 각 범위에서 하루 한 번 시각을 정합니다.';
+      const start = type === 'am' ? '13:45~13:55' : '08:15~08:25';
+      const end = type === 'pm' ? '14:15~14:25' : '18:25~18:35';
+      return `출근 ${start} / 퇴근 ${end} · 각 범위에서 하루 한 번 시각을 정합니다.`;
+    }
+    const modal    = ref({ open: false, key: null, dateLabel: '', current: null });
+    const availableWorkOptions = computed(() => workOptions.filter(option => modal.value.workShift !== 'night' || ['work','annual'].includes(option.value)));
+    function selectShift(shift) {
+      modal.value.workShift = shift;
+      if (shift === 'night' && ['am','pm'].includes(modal.value.type)) modal.value.type = 'work';
+    }
+    const toast    = ref({ show: false, msg: '' });
+    let toastTimer = null;
+
+    async function fetchLeaves() {
+      loading.value = true;
+      try {
+        const [days, holidays, scheduler, records] = await Promise.all([
+          api('/api/calendar/leaves').then(r => r.json()),
+          api('/api/calendar/holidays').then(r => r.json()),
+          api('/api/calendar/scheduler').then(r => r.json()),
+          api('/api/calendar/logs').then(r => r.json())]);
+        HOLIDAYS = holidays;
+        schedulerEnabled.value = scheduler.enabled;
+        leaves.value = days;
+        logs.value = records;
+        loadError.value = null;
+      } catch (e) { loadError.value = e.message || '데이터 로드 실패'; showToast(loadError.value); }
+      finally { loading.value = false; }
+    }
+
+    function formatTime(value) {
+      return typeof value === 'string' && /^\d{6}$/.test(value)
+        ? `${value.slice(0,2)}:${value.slice(2,4)}` : '—';
+    }
+    onMounted(fetchLeaves);
+
+    const cells = computed(() => {
+      const y = curYear.value, m = curMonth.value;
+      const firstDay    = new Date(y, m, 1).getDay();
+      const daysInMonth = new Date(y, m+1, 0).getDate();
+      const daysInPrev  = new Date(y, m, 0).getDate();
+      const total       = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+      const result = [];
+
+      for (let i = 0; i < total; i++) {
+        let day, mo = m, yr = y, other = false;
+        if (i < firstDay) {
+          day = daysInPrev - firstDay + 1 + i; mo = m-1; if(mo<0){mo=11;yr--;} other=true;
+        } else if (i >= firstDay + daysInMonth) {
+          day = i - firstDay - daysInMonth + 1; mo = m+1; if(mo>11){mo=0;yr++;} other=true;
+        } else {
+          day = i - firstDay + 1;
+        }
+        const dow         = i % 7;
+        const k           = dateKey(yr, mo, day);
+        const holidayName = HOLIDAYS[k] || null;
+        const weekend     = dow === 0 || dow === 6;
+        const workday     = !other && !weekend && !holidayName;
+        const isToday     = !other && day===today.getDate() && mo===today.getMonth() && yr===today.getFullYear();
+        const setting = leaves.value[k];
+        const leaveType = workday ? (setting?.leaveType || 'work') : null;
+        const locationCd = setting?.locationCd || '외부현장';
+        const workShift = setting?.workShift || 'day';
+        const skipCheckIn = setting?.skipCheckIn === true || setting?.skipCheckIn === 'true';
+        const skipCheckOut = setting?.skipCheckOut === true || setting?.skipCheckOut === 'true';
+
+        result.push({ record: logs.value[k], key: k+i, k, day, mo, yr, dow, other, holidayName, weekend, workday, isToday, leaveType, locationCd, workShift, skipCheckIn, skipCheckOut,
+          dateLabel: `${yr}년 ${mo+1}월 ${day}일 (${WEEK[dow]})` });
+      }
+      return result;
+    });
+
+    const stats = computed(() => {
+      let work = 0, holiday = 0, annual = 0;
+      cells.value.forEach(c => {
+        if (c.other) return;
+        if (c.holidayName) holiday++;
+        else if (!c.weekend) {
+          work++;
+          if (c.leaveType === 'annual') annual += 1;
+          else if (c.leaveType === 'am' || c.leaveType === 'pm') annual += 0.5;
+        }
+      });
+      return { work, holiday, annual, actual: work - annual };
+    });
+
+    function cellClass(c) {
+      return ['day-cell',
+        c.other   ? 'other-month' : '',
+        c.isToday ? 'today-cell'  : '',
+        c.dow===0 ? 'sun-col'     : '',
+        c.dow===6 ? 'sat-col'     : '',
+        (c.holidayName && !c.other) ? 'holiday-cell' : '',
+        c.workday ? 'clickable'   : '',
+      ].filter(Boolean).join(' ');
+    }
+
+    function badgeClass(c) {
+      if (c.holidayName)            return 'badge badge-holiday';
+      if (c.weekend)                return 'badge badge-weekend';
+      if (c.leaveType === 'annual') return 'badge badge-annual';
+      if (c.leaveType === 'am')     return 'badge badge-am';
+      if (c.leaveType === 'pm')     return 'badge badge-pm';
+      return 'badge badge-work';
+    }
+
+    function badgeText(c) {
+      if (c.holidayName)            return '공휴일';
+      if (c.weekend)                return c.dow===0 ? '일' : '토';
+      if (c.leaveType === 'annual') return '연차';
+      if (c.leaveType === 'am')     return '오전반차';
+      if (c.leaveType === 'pm')     return '오후반차';
+      return '출근';
+    }
+
+    function onCellClick(cell) {
+      if (cell.other || !cell.workday) return;
+      modal.value = { open: true, key: cell.k, dateLabel: cell.dateLabel, current: cell.leaveType, type: cell.leaveType || 'work', locationCd: cell.locationCd, workShift: cell.workShift, skipCheckIn: cell.skipCheckIn, skipCheckOut: cell.skipCheckOut };
+    }
+
+    function closeModal() { if (!saving.value) modal.value.open = false; }
+    async function saveSetting() {
+      if (saving.value) return;
+      saving.value = true;
+      const {key:workDt, type:leaveType, locationCd, workShift, skipCheckIn, skipCheckOut} = modal.value;
+      try {
+        await api('/api/calendar/leaves', {method:'POST',body:JSON.stringify({workDt,leaveType,locationCd,workShift,skipCheckIn,skipCheckOut})});
+        leaves.value = {...leaves.value,[workDt]:{leaveType,locationCd,workShift,skipCheckIn,skipCheckOut}};
+        modal.value.open = false;
+        showToast('근무 설정과 출퇴근 실행 여부를 저장했어요');
+      } catch(e) {showToast(e.message || '저장 실패');}
+      finally {saving.value=false;}
+    }
+    async function resetSetting() {
+      if (saving.value) return;
+      saving.value=true;
+      const key=modal.value.key;
+      try {
+        await api(`/api/calendar/leaves/${key}`,{method:'DELETE'});
+        const updated={...leaves.value}; delete updated[key]; leaves.value=updated;
+        modal.value.open=false; showToast('주간조 / 정상근무 / 외부현장 / 출퇴근 실행으로 초기화했어요');
+      } catch(e) {showToast(e.message || '초기화 실패');}
+      finally {saving.value=false;}
+    }
+
+    function showToast(msg) {
+      toast.value = { show: true, msg };
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.value.show = false; }, 2000);
+    }
+
+    function changeMonth(d) {
+      let m = curMonth.value + d, y = curYear.value;
+      if (m < 0)  { m = 11; y--; }
+      if (m > 11) { m = 0;  y++; }
+      curMonth.value = m; curYear.value = y;
+    }
+    function goToday() {
+      curYear.value = today.getFullYear();
+      curMonth.value = today.getMonth();
+    }
+
+    return {
+      curYear, curMonth, cells, stats, loading, modal, toast,
+      cellClass, badgeClass, badgeText,
+      onCellClick, closeModal, saveSetting, resetSetting, saving, schedulerEnabled, locations, attendanceActions, shifts, availableWorkOptions, selectShift, scheduleText,
+      changeMonth, goToday, fetchLeaves, formatTime, loadError
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

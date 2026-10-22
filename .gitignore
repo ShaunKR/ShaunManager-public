@@ -1,0 +1,31 @@
+.gradle/
+build/
+out/
+.idea/
+*.iml
+.vscode/
+logs/
+.env
+
+# Local ERP credentials and captured requests
+/config/*
+!/config/.gitkeep
+*.flows
+
+
+# Local H2 state
+*.mv.db
+*.trace.db
+*.lock.db
+
+
+# Public source distribution: exclude local secrets and artifacts
+.env.*
+*.enc
+*.log
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.p12
+*.pem
+*.key
+.DS_Store

@@ -1,0 +1,10 @@
+logging:
+  level:
+    root: info
+    knr.shaunmanager: debug
+
+spring:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console

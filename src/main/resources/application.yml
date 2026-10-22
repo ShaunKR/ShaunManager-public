@@ -1,0 +1,52 @@
+spring:
+  datasource:
+    url: ${SHAUN_DB_URL:jdbc:h2:file:./shaun-data;AUTO_SERVER=TRUE}
+    driver-class-name: org.h2.Driver
+    username: ${SHAUN_DB_USER:sa}
+    password: ${SHAUN_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  application:
+    name: ShaunManager
+  profiles:
+    default: dev
+
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:9091}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+shaun:
+  access-token: ${SHAUN_ACCESS_TOKEN:}
+
+  shaunrise:
+    enabled: false
+    test-enabled: false
+    animation-enabled: true
+    config-path: config/telegram.enc
+    start-date: "2026-10-20"
+    launch-date: "2026-12-02"
+
+  scheduler:
+    enabled: ${SHAUN_SCHEDULER_ENABLED:false}
+
+logging:
+  file:
+    name: ${SHAUN_LOG_FILE:./logs/shaun-manager.log}
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+      total-size-cap: 300MB
+  pattern:
+    dateformat: yyyy-MM-dd HH:mm:ss.SSS,Asia/Seoul
